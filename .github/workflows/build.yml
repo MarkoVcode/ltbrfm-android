@@ -33,9 +33,26 @@ jobs:
 
       # Debug-signed APK is directly sideloadable for Android Auto developer
       # mode. Play Store distribution needs a release keystore + signing config.
-      - name: Attach APK to release
+      - name: Rename APK for release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: cp app/build/outputs/apk/debug/app-debug.apk "ltbrfm-${{ github.ref_name }}.apk"
+
+      - name: Create release with APK
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/debug/app-debug.apk
-          draft: true
+          files: ltbrfm-v*.apk
+          draft: false
+          body: |
+            ### LTBR·FM for Android & Android Auto
+
+            Direct-download APK — no store needed.
+
+            **Install**: copy to your phone and open it, or `adb install -r ltbrfm-*.apk`.
+            Because this build is debug-signed, if an install from a *different* CI run is
+            already present you may need to uninstall it first (signature mismatch).
+
+            **Android Auto**: enable developer mode in the Android Auto app
+            (Settings → tap *Version* repeatedly), then Developer settings →
+            **Unknown sources** ON. LTBR·FM then appears in the car's media launcher
+            with live now-playing titles.
