@@ -98,6 +98,17 @@ class MainActivity : ComponentActivity() {
         if (c.isPlaying) stop() else play()
     }
 
+    /** "Artist - Title" for the scroller; station-name artist adds nothing. */
+    private fun describe(m: MediaMetadata): String {
+        val title = m.title?.toString().orEmpty()
+        val artist = m.artist?.toString().orEmpty()
+        return when {
+            title.isEmpty() -> ""
+            artist.isEmpty() || artist == "London Tower Block Radio" -> title
+            else -> "$artist - $title"
+        }
+    }
+
     @Composable
     private fun Faceplate() {
         var playing by remember { mutableStateOf(false) }
@@ -120,7 +131,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-                    nowPlaying = mediaMetadata.title?.toString() ?: ""
+                    nowPlaying = describe(mediaMetadata)
                 }
             }
             future.addListener({
@@ -128,7 +139,7 @@ class MainActivity : ComponentActivity() {
                 controller = c
                 c.addListener(listener)
                 playing = c.isPlaying
-                nowPlaying = c.mediaMetadata.title?.toString() ?: ""
+                nowPlaying = describe(c.mediaMetadata)
             }, MoreExecutors.directExecutor())
 
             onDispose {

@@ -5,7 +5,10 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Metadata
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.extractor.metadata.icy.IcyInfo
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
@@ -75,6 +78,42 @@ class PlaybackService : MediaLibraryService() {
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
+
+        // ICY now-playing: static MediaItem metadata takes precedence over
+        // stream metadata, so the raw ICY title would never surface. Listen to
+        // the ICY events ourselves, split the conventional "Artist - Title"
+        // form into proper fields, and write them back as static metadata —
+        // Android Auto then shows a proper two-line now-playing (and marquees
+        // long titles itself).
+        player.addListener(object : Player.Listener {
+            override fun onMetadata(metadata: Metadata) {
+                var streamTitle: String? = null
+                for (i in 0 until metadata.length()) {
+                    val entry = metadata.get(i)
+                    if (entry is IcyInfo) streamTitle = entry.title
+                }
+                val raw = streamTitle?.trim().orEmpty()
+                if (raw.isEmpty()) return
+
+                val parts = raw.split(" - ", limit = 2)
+                val (artist, title) =
+                    if (parts.size == 2) parts[0].trim() to parts[1].trim()
+                    else "London Tower Block Radio" to raw
+
+                val current = player.currentMediaItem ?: return
+                val updated = current.buildUpon()
+                    .setMediaMetadata(
+                        current.mediaMetadata.buildUpon()
+                            .setTitle(title)
+                            .setArtist(artist)
+                            .build(),
+                    )
+                    .build()
+                // Same URI, metadata-only change: ExoPlayer applies this
+                // without interrupting playback.
+                player.replaceMediaItem(player.currentMediaItemIndex, updated)
+            }
+        })
 
         session = MediaLibrarySession.Builder(this, player, LibraryCallback()).build()
     }
