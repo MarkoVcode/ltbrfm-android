@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Spectrum bars, echoing the desktop app icon -->
+    <path
+        android:fillColor="#FF9B21"
+        android:pathData="M31,58h6v14h-6z M41,46h6v26h-6z M51,36h6v36h-6z M61,50h6v22h-6z M71,42h6v30h-6z" />
+    <!-- Transmit LED -->
+    <path
+        android:fillColor="#FF3F1C"
+        android:pathData="M72,30a4,4 0 1,0 8,0a4,4 0 1,0 -8,0" />
+</vector>
