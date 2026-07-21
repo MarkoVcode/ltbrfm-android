@@ -13,18 +13,22 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -35,10 +39,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
@@ -48,12 +53,21 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 
+// Faceplate palette, matching the desktop receiver.
 private val Amber = Color(0xFFFF9B21)
 private val Red = Color(0xFFFF3F1C)
 private val Concrete = Color(0xFF8D857A)
-private val Ink = Color(0xFF0D0B09)
-private val Face = Color(0xFF2A2521)
+private val ConcreteDim = Color(0xFF5A544C)
+private val Ink = Color(0xFF0A0908)
 private val Bone = Color(0xFFF4EFE6)
+private val KeyText = Color(0xFFC9C0B3)
+
+private val PanelBrush = Brush.verticalGradient(
+    listOf(Color(0xFF3A332C), Color(0xFF2A2521), Color(0xFF2A2521), Color(0xFF1D1916)),
+)
+private val KeyBrush = Brush.verticalGradient(
+    listOf(Color(0xFF4A423A), Color(0xFF332D27), Color(0xFF241F1A)),
+)
 
 class MainActivity : ComponentActivity() {
 
@@ -65,22 +79,27 @@ class MainActivity : ComponentActivity() {
             registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
                 .launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-        setContent { Screen() }
+        setContent { Faceplate() }
+    }
+
+    private fun play() {
+        val c = controller ?: return
+        c.setMediaItem(MediaItem.Builder().setMediaId(PlaybackService.LIVE_ID).build())
+        c.prepare()
+        c.play()
+    }
+
+    private fun stop() {
+        controller?.stop()
     }
 
     private fun toggle() {
         val c = controller ?: return
-        if (c.isPlaying) {
-            c.stop()
-        } else {
-            c.setMediaItem(MediaItem.Builder().setMediaId(PlaybackService.LIVE_ID).build())
-            c.prepare()
-            c.play()
-        }
+        if (c.isPlaying) stop() else play()
     }
 
     @Composable
-    private fun Screen() {
+    private fun Faceplate() {
         var playing by remember { mutableStateOf(false) }
         var buffering by remember { mutableStateOf(false) }
         var nowPlaying by remember { mutableStateOf("") }
@@ -119,33 +138,79 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        val scrollerText = when {
+            buffering -> "LTBR FM · TUNING · STAND BY ·"
+            playing -> "LTBR FM · ON AIR · ${nowPlaying.ifEmpty { "LIVE" }} ·"
+            else -> "LTBR FM · LONDON TOWER BLOCK RADIO · PRESS PLAY ·"
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Ink)
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+                .background(PanelBrush)
+                .padding(horizontal = 22.dp, vertical = 28.dp),
         ) {
-            // Wordmark, matching the ltbr.fm logotype.
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text("LTBR", color = Bone, fontSize = 36.sp, fontWeight = FontWeight.Black)
-                Text(".", color = Amber, fontSize = 36.sp, fontWeight = FontWeight.Black)
-                Text(
-                    "FM",
-                    color = Bone.copy(alpha = 0.55f),
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.Black,
+            BrandRow(playing = playing)
+
+            Spacer(Modifier.height(6.dp))
+            Divider()
+            Spacer(Modifier.height(22.dp))
+
+            // Inset display window with the dot-matrix scroller.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Ink)
+                    .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 12.dp),
+            ) {
+                DotMatrixDisplay(
+                    text = scrollerText,
+                    scrolling = playing || buffering,
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
-            Text(
-                "LONDON TOWER BLOCK RADIO",
-                color = Concrete,
-                fontSize = 11.sp,
-                letterSpacing = 4.sp,
-            )
 
-            Spacer(Modifier.height(56.dp))
+            Spacer(Modifier.height(24.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                TransportKey(glyph = if (playing) "❚❚" else "▶", active = playing) { toggle() }
+                TransportKey(glyph = "■", active = false) { stop() }
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            PresetRow()
+            Spacer(Modifier.height(10.dp))
+            Divider()
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "RECEIVING · STREAM.LTBR.FM/LIVE",
+                color = ConcreteDim,
+                fontSize = 10.sp,
+                letterSpacing = 3.sp,
+                fontFamily = FontFamily.Monospace,
+            )
+        }
+    }
+
+    @Composable
+    private fun BrandRow(playing: Boolean) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("LTBR", color = Bone, fontSize = 24.sp, fontWeight = FontWeight.Black)
+            Text(".", color = Amber, fontSize = 24.sp, fontWeight = FontWeight.Black)
+            Text(
+                "FM",
+                color = Bone.copy(alpha = 0.55f),
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black,
+            )
+            Spacer(Modifier.weight(1f))
 
             // TX LED: always red — solid on standby, gentle pulse on air.
             val pulse = rememberInfiniteTransition(label = "led")
@@ -155,53 +220,72 @@ class MainActivity : ComponentActivity() {
                 animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Reverse),
                 label = "ledAlpha",
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .size(10.dp)
-                        .alpha(if (playing) ledAlpha else 1f)
-                        .background(Red, CircleShape),
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    "STANDBY",
-                    color = Concrete,
-                    fontSize = 11.sp,
-                    letterSpacing = 3.sp,
-                )
-            }
+            Box(
+                Modifier
+                    .size(9.dp)
+                    .alpha(if (playing) ledAlpha else 1f)
+                    .background(Red, CircleShape),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("STANDBY", color = Concrete, fontSize = 10.sp, letterSpacing = 3.sp)
+        }
+    }
 
-            Spacer(Modifier.height(28.dp))
+    @Composable
+    private fun TransportKey(glyph: String, active: Boolean, onClick: () -> Unit) {
+        Box(
+            modifier = Modifier
+                .size(width = 68.dp, height = 46.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(KeyBrush)
+                .border(1.dp, Ink, RoundedCornerShape(4.dp))
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(glyph, color = if (active) Amber else KeyText, fontSize = 17.sp)
+        }
+    }
 
-            Surface(
-                onClick = { toggle() },
-                shape = CircleShape,
-                color = Face,
-                modifier = Modifier.size(108.dp),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        if (playing) "■" else "▶",
-                        color = Amber,
-                        fontSize = 34.sp,
-                    )
-                }
-            }
+    @Composable
+    private fun PresetRow() {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            PresetChip("1", "LTBR", active = true)
+            for (n in 2..6) PresetChip(n.toString(), "----", active = false)
+        }
+    }
 
-            Spacer(Modifier.height(44.dp))
-
+    @Composable
+    private fun RowScope.PresetChip(number: String, label: String, active: Boolean) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(3.dp))
+                .background(Color(0xFF221E1A))
+                .border(1.dp, Color(0xFF100E0C), RoundedCornerShape(3.dp))
+                .padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(number, color = if (active) Amber else ConcreteDim, fontSize = 11.sp)
             Text(
-                when {
-                    buffering -> "TUNING…"
-                    playing -> nowPlaying.ifEmpty { "ON AIR" }.uppercase()
-                    else -> "— PRESS PLAY —"
-                },
-                color = if (playing || buffering) Amber else Concrete,
-                fontSize = 13.sp,
+                label,
+                color = if (active) KeyText else ConcreteDim,
+                fontSize = 9.sp,
+                letterSpacing = 2.sp,
                 fontFamily = FontFamily.Monospace,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+
+    @Composable
+    private fun Divider() {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Color(0x73000000)),
+        )
     }
 }
