@@ -28,15 +28,22 @@
             </intent-filter>
         </activity>
 
+        <!-- Icon Android Auto uses for media notifications on the car screen. -->
+        <meta-data
+            android:name="com.google.android.gms.car.notification.SmallIcon"
+            android:resource="@drawable/ic_fg" />
+
         <!-- The media service Android Auto (and Bluetooth / lock screen /
-             Wear) binds to. Both intent-filter actions are required: media3
-             for modern controllers, the legacy browse action for Auto. -->
+             Wear) binds to. All three intent-filter actions matter: the two
+             media3 actions for modern controllers, the legacy browse action
+             for Android Auto's app discovery. -->
         <service
             android:name=".PlaybackService"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaLibraryService" />
+                <action android:name="androidx.media3.session.MediaSessionService" />
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
